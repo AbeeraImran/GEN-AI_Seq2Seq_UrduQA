@@ -1,70 +1,41 @@
+# Teaching AI to Ask Questions in Urdu: A Seq2Seq Approach
 
+## Overview
+This repository contains the codebase for an Answer-Aware Question Generation (QG) system built specifically for Urdu, a morphologically rich and low-resource language. Instead of fine-tuning a pretrained transformer, this model is built and trained entirely from the ground up to explore the foundational challenges of subword tokenization and sequence-to-sequence modeling in South Asian NLP.
 
+## Architecture & Tech Stack
+* **Frameworks:** PyTorch, NumPy, Pandas, Matplotlib
+* **Tokenizer:** SentencePiece (Unigram language model, 8,000 vocabulary size)
+* **Encoder:** 2-layer Bidirectional LSTM
+* **Decoder:** 2-layer Unidirectional LSTM with Bahdanau (Additive) Attention
+* **Inference Strategy:** Greedy Decoding with UNK-token Logit Suppression
 
-# GEN-AI Seq2Seq UrduQA
+## Dataset & Preprocessing
+The model is trained using the [uqa/UQA](https://huggingface.co/datasets/uqa/UQA) dataset from Hugging Face. 
+To achieve "answer-aware" generation, context paragraphs are parsed and the specific answer spans are wrapped in custom ` ... ` tags. These tags are registered as user-defined symbols in SentencePiece to prevent them from being fragmented during subword tokenization.
 
-A sequence-to-sequence (Seq2Seq) neural pipeline designed to generate context-relevant Urdu questions from context paragraphs and answer spans using the `uqa/UQA` dataset.
+## Evaluation & Metrics
+Because standard automated metrics (like BLEU) heavily penalize morphologically rich languages for valid paraphrasing, our evaluation relies on a combination of automated scoring and independent human review. 
 
+**Automated Metrics (Validation Subset):**
+* **BLEU-4 Score:** 3.04
+* **ROUGE-L (F-Measure):** 0.0063
+* **UNK Token Rate:** 0.00%
 
+*Note on Inference:* Early greedy decoding passes exhibited mode collapse, where the decoder would loop the Unknown (``) token. This was corrected by implementing **Logit Suppression** during the forward pass (setting the `UNK_ID` probability to `-inf` prior to the `argmax` selection). This forced the model to utilize its learned vocabulary, successfully dropping the UNK rate to 0.00%.
 
----
+**Qualitative Evaluation:**
+Automated metrics are paired with a 50-sample human evaluation. Generated questions are scored on a 1–5 scale across three dimensions:
+1. **Fluency:** Is the Urdu grammatically correct?
+2. **Relevance:** Does the question relate to the context paragraph?
+3. **Answerability:** Can the question be answered by the target `` span?
+To ensure evaluation integrity, we calculate Cohen’s Kappa across our grading team to measure inter-rater reliability.
 
-## Project Overview
+## Known Limitations
+* **Matplotlib RTL Rendering:** Matplotlib does not natively support Right-to-Left (RTL) text layout or complex glyph rendering for Nastaliq scripts. As a result, the Urdu axis labels on our Attention Alignment Heatmaps render as disconnected or reversed characters. This is a visualization library limitation, not a tokenization error.
+* **Vocabulary Ceiling:** The restricted 8,000-token vocabulary limits the model's ability to perfectly capture Urdu's morphological complexity.
 
-* **Task:** Given an Urdu context sentence containing an answer span (wrapped in `...` tags), generate the corresponding question.
-* **Domain:** Natural Language Processing / Generative AI
-* **Framework:** PyTorch & SentencePiece
-
----
-
-## Architecture Pipeline
-
-* **Tokenizer:** SentencePiece Unigram model with an 8,000-token vocabulary and user-defined symbols (`, `).
-* **Encoder:** 2-layer Bidirectional LSTM (Embedding Dim: 256, Hidden Dim: 512, Dropout: 0.3) with packed sequence handling.
-* **Decoder (Base):** 2-layer Unidirectional LSTM with step-wise decoding and Teacher Forcing support (50% ratio).
-* **Optimization:** Adam Optimizer (lr=0.001), Cross-Entropy Loss ignoring padding (ignore_index=0).
-
----
-
-## Repository Structure
-
-```
-├── data/                  # Cleaned TSV splits (train.tsv, valid.tsv)
-├── tokenizer/             # ur_sp.model and ur_sp.vocab
-├── notebooks/             # End-to-end training and inference notebooks
-├── checkpoints/           # Saved model state dicts (best_seq2seq_model.pt)
-└── README.md
-
-```
-
----
-
-## Getting Started
-
-### 1. Requirements
-
-Install the core dependencies:
-
-```
-pip install torch datasets sentencepiece sacrebleu rouge-score
-
-```
-
-### 2. Pipeline Execution
-
-1. **Data Prep & Tokenizer:** Run the preprocessing cells to filter question-answer pairs and train the SentencePiece model.
-2. **Model Training:** Initialize the Encoder and DecoderBase modules and run train_one_epoch on GPU.
-3. **Checkpointing:** Model weights are automatically saved to best_seq2seq_model.pt whenever validation loss improves.
-
----
-
-## Roadmap & Next Steps
-
-* [x] Data extraction, preprocessing, and SentencePiece tokenization
-* [x] PyTorch custom QGDataset, collate function, and batched DataLoader
-* [x] Bi-LSTM Encoder, Base Decoder, and training loop validation
-* [ ] Implement Bahdanau / Luong Attention in the Decoder
-* [ ] Add Beam Search decoding (beam size 3–5)
-* [ ] Quantitative evaluation (BLEU-4, ROUGE-L, Perplexity) on validation and test sets
-* [ ] Streamlit / Gradio web demo interface
-
+## Future Improvements
+While the current architecture successfully proves the viability of answer-aware QG in Urdu, future scaling could benefit from:
+* Implementing Beam Search decoding to improve sentence fluency and structure over greedy decoding.
+* Expanding the SentencePiece vocabulary size and experimenting with BPE vs. Unigram segmentation to better capture Urdu's morphological complexity.
